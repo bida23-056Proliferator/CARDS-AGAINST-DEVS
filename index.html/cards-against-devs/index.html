@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cards Against Devs</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;700&family=Barlow+Condensed:wght@400;600;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --acid: #d4ff00;
+    --red: #ff2d55;
+    --black: #080808;
+    --surface: #111111;
+    --surface2: #1a1a1a;
+    --border: #2a2a2a;
+    --muted: #555;
+    --text: #eeeeee;
+  }
+  body { background: var(--black); color: var(--text); font-family: 'JetBrains Mono', monospace; min-height: 100vh; overflow-x: hidden; }
+  #app { max-width: 900px; margin: 0 auto; padding: 20px; }
+  .screen { display: none; animation: fadeIn 0.3s ease; }
+  .screen.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  .logo { font-family: 'Bebas Neue', sans-serif; font-size: clamp(48px, 12vw, 96px); color: var(--acid); letter-spacing: 2px; line-height: 1; margin-bottom: 4px; }
+  .logo-sub { font-size: 11px; color: var(--muted); letter-spacing: 4px; text-transform: uppercase; margin-bottom: 40px; }
+
+  .inp { background: var(--surface); border: 1px solid var(--border); color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 14px; padding: 10px 14px; width: 100%; outline: none; transition: border 0.2s; margin-bottom: 12px; }
+  .inp:focus { border-color: var(--acid); }
+  .inp::placeholder { color: var(--muted); }
+  label { display: block; font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
+
+  .btn { font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 2px; padding: 12px 28px; border: none; cursor: pointer; transition: all 0.15s; }
+  .btn-acid { background: var(--acid); color: var(--black); }
+  .btn-acid:hover { background: #fff; }
+  .btn-outline { background: transparent; color: var(--acid); border: 1px solid var(--acid); }
+  .btn-outline:hover { background: var(--acid); color: var(--black); }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--muted); color: var(--text); }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+
+  .room-code-display { font-family: 'Bebas Neue', sans-serif; font-size: 64px; color: var(--acid); letter-spacing: 8px; text-align: center; background: var(--surface); border: 1px solid var(--border); padding: 20px; margin: 20px 0; cursor: pointer; }
+  .player-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+  .player-chip { background: var(--surface2); border: 1px solid var(--border); padding: 6px 14px; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  .player-chip.host { border-color: var(--acid); color: var(--acid); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: #33ff66; display: inline-block; }
+
+  .game-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .round-info { font-size: 11px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
+  .scores { display: flex; gap: 16px; flex-wrap: wrap; }
+  .score-item { text-align: center; min-width: 60px; }
+  .score-name { font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80px; }
+  .score-num { font-family: 'Bebas Neue', sans-serif; font-size: 24px; color: var(--acid); line-height: 1; }
+
+  .black-card { background: var(--text); color: var(--black); padding: 24px 28px; min-height: 160px; display: flex; align-items: flex-end; margin-bottom: 20px; position: relative; }
+  .black-card-text { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 700; line-height: 1.3; flex: 1; }
+  .blank { display: inline-block; border-bottom: 3px solid var(--black); min-width: 120px; }
+  .black-card-label { font-size: 10px; letter-spacing: 2px; color: #555; position: absolute; top: 16px; right: 16px; }
+
+  .hand { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-bottom: 24px; }
+  .white-card { background: var(--surface); border: 1px solid var(--border); padding: 16px; min-height: 100px; cursor: pointer; transition: all 0.15s; display: flex; align-items: flex-end; font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 600; line-height: 1.3; }
+  .white-card:hover { border-color: var(--acid); background: var(--surface2); }
+  .white-card.selected { border-color: var(--acid); background: #1a1f00; color: var(--acid); }
+  .white-card.judging:hover { border-color: var(--red); background: #1a0008; }
+  .white-card.winner-card { border-color: #33ff66; background: #001a08; color: #33ff66; }
+
+  .section-title { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+  .progress-bar { height: 3px; background: var(--border); margin-bottom: 20px; }
+  .progress-fill { height: 100%; background: var(--acid); transition: width 0.5s ease; }
+  .phase-banner { text-align: center; padding: 16px; background: var(--surface); border: 1px solid var(--border); margin-bottom: 20px; }
+  .phase-label { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 2px; }
+  .phase-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  .winner-banner { text-align: center; padding: 32px 20px; }
+  .winner-name { font-family: 'Bebas Neue', sans-serif; font-size: 48px; color: var(--acid); letter-spacing: 2px; }
+
+  .loading-dots { display: inline-flex; gap: 4px; align-items: center; }
+  .loading-dots span { width: 5px; height: 5px; background: var(--acid); border-radius: 50%; animation: blink 1.2s infinite; }
+  .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%,100%{opacity:0.2} 50%{opacity:1} }
+
+  .toast { position: fixed; bottom: 20px; right: 20px; background: var(--acid); color: var(--black); padding: 10px 20px; font-size: 13px; font-weight: 700; z-index: 999; display: none; animation: slideUp 0.3s ease; }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  .note { font-size: 12px; color: var(--muted); line-height: 1.7; margin-top: 16px; }
+  h2 { font-family: 'Bebas Neue', sans-serif; font-size: 32px; letter-spacing: 1px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="screen-landing" class="screen active">
+    <div class="logo">CARDS<br>AGAINST<br>DEVS</div>
+    <div class="logo-sub">Multiplayer · Real-time · AI-powered</div>
+    <label>Your name</label>
+    <input class="inp" id="player-name" placeholder="xX_NullPointer_Xx" maxlength="20">
+    <div class="btn-row">
+      <button class="btn btn-acid" onclick="createRoom()">Create Room</button>
+      <button class="btn btn-outline" onclick="toggleJoin()">Join Room</button>
+    </div>
+    <div id="join-area" style="display:none; margin-top:20px;">
+      <label>Room Code</label>
+      <input class="inp" id="room-code-inp" placeholder="XKCD" maxlength="6" style="text-transform:uppercase; letter-spacing:4px;">
+      <button class="btn btn-outline" onclick="joinRoom()">Join →</button>
+    </div>
+    <p class="note">Share your room code with friends — up to 8 players. First to 7 points wins.</p>
+  </div>
+
+  <div id="screen-lobby" class="screen">
+    <h2>LOBBY</h2>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Click the code to copy it and share with friends:</p>
+    <div class="room-code-display" id="room-code-display" onclick="copyCode()">----</div>
+    <div class="section-title">Players (<span id="player-count">0</span>/8)</div>
+    <div class="player-list" id="player-list"></div>
+    <div id="lobby-msg" style="font-size:12px;color:var(--muted);margin:12px 0">Waiting for players...</div>
+    <div class="btn-row">
+      <button class="btn btn-acid" id="start-btn" onclick="startGame()" style="display:none">Start Game →</button>
+      <button class="btn btn-ghost" onclick="leaveGame()">Leave</button>
+    </div>
+  </div>
+
+  <div id="screen-game" class="screen">
+    <div class="game-header">
+      <div>
+        <div class="round-info">Round <span id="round-num">1</span> / <span id="max-rounds">10</span></div>
+        <div id="phase-indicator" style="font-size:11px;color:var(--acid);margin-top:2px">—</div>
+      </div>
+      <div class="scores" id="scores-display"></div>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:10%"></div></div>
+
+    <div class="phase-banner" id="phase-banner">
+      <div class="phase-label" id="phase-label" style="color:var(--acid)">ROUND START</div>
+      <div class="phase-sub" id="phase-sub">Generating prompt...</div>
+    </div>
+
+    <div id="black-card-area" style="display:none">
+      <div class="section-title">This Round's Prompt</div>
+      <div class="black-card">
+        <div class="black-card-text" id="black-card-text"></div>
+        <div class="black-card-label">PROMPT</div>
+      </div>
+    </div>
+
+    <div id="player-hand-area" style="display:none">
+      <div class="section-title">Your Hand — Pick your answer</div>
+      <div class="hand" id="player-hand"></div>
+    </div>
+
+    <div id="judging-area" style="display:none">
+      <div class="section-title">All Submissions — You judge. Pick the funniest.</div>
+      <div class="hand" id="submissions-display"></div>
+    </div>
+
+    <div id="winner-area" style="display:none">
+      <div class="winner-banner">
+        <div style="font-size:48px">🏆</div>
+        <div class="winner-name" id="winner-name-display"></div>
+        <div style="font-size:13px;color:var(--muted);margin-top:8px" id="winner-card-text"></div>
+      </div>
+      <div style="text-align:center">
+        <button class="btn btn-acid" id="next-round-btn" onclick="nextRound()" style="display:none">Next Round →</button>
+      </div>
+    </div>
+
+    <div id="game-over-area" style="display:none">
+      <div class="winner-banner">
+        <div style="font-size:48px">👑</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--muted);letter-spacing:2px">GAME OVER</div>
+        <div class="winner-name" id="game-winner-display"></div>
+      </div>
+      <div style="text-align:center">
+        <button class="btn btn-acid" onclick="leaveGame()">Play Again</button>
+      </div>
+    </div>
+
+    <div style="text-align:center;margin-top:8px">
+      <button class="btn btn-acid" id="submit-btn" onclick="submitCard()" style="display:none" disabled>Select a card first</button>
+    </div>
+
+    <div id="waiting-area" style="display:none;text-align:center;padding:24px;color:var(--muted);font-size:13px">
+      <div class="loading-dots"><span></span><span></span><span></span></div>
+      <div style="margin-top:8px" id="waiting-text">Waiting...</div>
+    </div>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── CONFIG — replace with your values ───────────────────────────────────────
+const SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
+const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY';
+const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
+// Note: In production, proxy Anthropic calls through an Edge Function
+// to keep your API key secret. See README.md for details.
+// ──────────────────────────────────────────────────────────────────────────────
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// State
+let state = {
+  playerName: '', roomCode: '', playerId: null, isHost: false,
+  round: 0, maxRounds: 10, winScore: 7,
+  phase: 'lobby', judgeIndex: 0,
+  blackCard: '', hand: [], selectedCard: null,
+};
+
+let channels = {};
+
+// ─── Utils ───────────────────────────────────────────────────────────────────
+function el(id) { return document.getElementById(id); }
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  el('screen-' + id).classList.add('active');
+}
+function showToast(msg, dur=2500) {
+  const t = el('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', dur);
+}
+function genCode() {
+  return Math.random().toString(36).substring(2,6).toUpperCase();
+}
+function copyCode() {
+  navigator.clipboard?.writeText(state.roomCode);
+  showToast('Room code copied!');
+}
+function toggleJoin() {
+  el('join-area').style.display = el('join-area').style.display==='none' ? 'block' : 'none';
+}
+
+// ─── Anthropic API (proxy in production!) ────────────────────────────────────
+async function callClaude(system, user) {
+  const res = await fetch(ANTHROPIC_API_URL, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:600, system, messages:[{role:'user',content:user}] })
+  });
+  const data = await res.json();
+  return data.content[0].text.trim();
+}
+
+async function generateBlackCard() {
+  const raw = await callClaude(
+    `Generate one Black Card for "Cards Against Devs" — a Cards Against Humanity game for programmers. Return ONLY {"card":"..."} JSON. Card must have ___ blank, be edgy/dark/funny for devs, max 20 words.`,
+    'Generate unique black card round ' + state.round
+  );
+  return JSON.parse(raw.replace(/```json|```/g,'')).card;
+}
+
+async function generateWhiteCards(blackCard, count=7) {
+  const raw = await callClaude(
+    `Generate ${count} white card answers for "Cards Against Devs". Black Card: "${blackCard}". Return ONLY a JSON array of strings. Short (2-10 words), edgy, funny, tech-adjacent.`,
+    'Generate white cards'
+  );
+  return JSON.parse(raw.replace(/```json|```/g,'').trim());
+}
+
+async function judgePickWinner(blackCard, submissions) {
+  const opts = submissions.map((s,i) => `${i}: "${s.card_text}"`).join('\n');
+  const raw = await callClaude(
+    `You judge "Cards Against Devs". Black Card: "${blackCard}"\nSubmissions:\n${opts}\nReturn ONLY {"winner":N} with index of funniest. No markdown.`,
+    'Pick winner'
+  );
+  return JSON.parse(raw.replace(/```json|```/g,'')).winner;
+}
+
+// ─── Supabase Realtime ────────────────────────────────────────────────────────
+function subscribeToRoom(code) {
+  if(channels.room) supabase.removeChannel(channels.room);
+
+  channels.room = supabase.channel(`room:${code}`)
+    .on('postgres_changes', { event:'*', schema:'public', table:'rooms', filter:`code=eq.${code}` },
+      payload => onRoomUpdate(payload.new))
+    .on('postgres_changes', { event:'*', schema:'public', table:'players', filter:`room_code=eq.${code}` },
+      payload => onPlayersUpdate())
+    .on('postgres_changes', { event:'*', schema:'public', table:'submissions', filter:`room_code=eq.${code}` },
+      payload => onSubmissionsUpdate())
+    .subscribe();
+}
+
+async function onRoomUpdate(room) {
+  if(!room) return;
+  state.round = room.round;
+  state.phase = room.phase;
+  state.judgeIndex = room.judge_index;
+  state.blackCard = room.black_card;
+
+  el('round-num').textContent = room.round;
+  el('progress-fill').style.width = (room.round / room.max_rounds * 100) + '%';
+
+  const {data: players} = await supabase.from('players').select('*').eq('room_code', room.code).order('score', {ascending:false});
+  renderScores(players || [], room);
+
+  if(room.phase === 'picking') await handlePickingPhase(room);
+  else if(room.phase === 'judging') await handleJudgingPhase(room);
+  else if(room.phase === 'gameover') showGameOver(players);
+}
+
+async function onPlayersUpdate() {
+  const {data} = await supabase.from('players').select('*').eq('room_code', state.roomCode);
+  renderLobbyPlayers(data || []);
+}
+
+async function onSubmissionsUpdate() {
+  const {data} = await supabase.from('submissions').select('*')
+    .eq('room_code', state.roomCode).eq('round', state.round);
+  
+  const {data: room} = await supabase.from('rooms').select('*').eq('code', state.roomCode).single();
+  const {data: players} = await supabase.from('players').select('*').eq('room_code', state.roomCode);
+  
+  if(room?.phase === 'picking' && data?.length >= players?.length) {
+    // All submitted — if host, trigger judging
+    if(state.isHost) {
+      const {data: roomData} = await supabase.from('rooms').select('*').eq('code', state.roomCode).single();
+      const judge = players[roomData.judge_index % players.length];
+      if(judge.name !== state.playerName) {
+        // AI judges
+        const winIdx = await judgePickWinner(roomData.black_card, data);
+        await revealWinner(data[winIdx], players, roomData);
+      }
+    }
+  }
+  
+  if(room?.phase === 'judging') {
+    renderSubmissions(data || []);
+  }
+}
+
+// ─── Room Management ──────────────────────────────────────────────────────────
+async function createRoom() {
+  const name = el('player-name').value.trim() || 'AnonymousDev';
+  state.playerName = name;
+  state.roomCode = genCode();
+  state.isHost = true;
+
+  await supabase.from('rooms').insert({
+    code: state.roomCode, host_id: name, phase: 'lobby',
+    round: 0, max_rounds: 10, win_score: 7, judge_index: 0
+  });
+
+  const {data} = await supabase.from('players').insert({ room_code: state.roomCode, name, is_host: true, score: 0 }).select().single();
+  state.playerId = data.id;
+
+  subscribeToRoom(state.roomCode);
+  el('room-code-display').textContent = state.roomCode;
+  el('start-btn').style.display = 'inline-block';
+  el('lobby-msg').textContent = 'Share the code! You are the host.';
+  showScreen('lobby');
+}
+
+async function joinRoom() {
+  const name = el('player-name').value.trim() || 'AnonymousDev';
+  const code = el('room-code-inp').value.trim().toUpperCase();
+  if(!code) return showToast('Enter a room code!');
+
+  const {data: room} = await supabase.from('rooms').select('*').eq('code', code).single();
+  if(!room) return showToast('Room not found!');
+
+  state.playerName = name;
+  state.roomCode = code;
+  state.isHost = false;
+
+  const {data} = await supabase.from('players').insert({ room_code: code, name, is_host: false, score: 0 }).select().single();
+  state.playerId = data.id;
+
+  subscribeToRoom(code);
+  el('room-code-display').textContent = code;
+  el('lobby-msg').textContent = 'Waiting for host to start...';
+  showScreen('lobby');
+  onPlayersUpdate();
+}
+
+function renderLobbyPlayers(players) {
+  el('player-count').textContent = players.length;
+  el('player-list').innerHTML = players.map(p =>
+    `<div class="player-chip ${p.is_host?'host':''}">
+      <span class="dot"></span><span>${p.name}</span>
+      ${p.is_host?'<span style="font-size:9px;color:var(--acid)">[HOST]</span>':''}
+    </div>`
+  ).join('');
+}
+
+async function startGame() {
+  await supabase.from('rooms').update({ phase:'starting', round:1 }).eq('code', state.roomCode);
+  await beginRound();
+}
+
+async function leaveGame() {
+  if(state.playerId) await supabase.from('players').delete().eq('id', state.playerId);
+  if(channels.room) supabase.removeChannel(channels.room);
+  showScreen('landing');
+}
+
+// ─── Game Round Logic ─────────────────────────────────────────────────────────
+async function beginRound() {
+  hideAllGameAreas();
+  el('waiting-area').style.display = 'block';
+  el('waiting-text').textContent = 'Generating round prompt...';
+
+  // Host generates black card
+  if(state.isHost) {
+    const bc = await generateBlackCard();
+    await supabase.from('rooms').update({
+      phase: 'picking',
+      black_card: bc,
+      round: state.round,
+    }).eq('code', state.roomCode);
+  }
+}
+
+async function nextRound() {
+  if(!state.isHost) return;
+  const {data: room} = await supabase.from('rooms').select('*').eq('code', state.roomCode).single();
+  const {data: players} = await supabase.from('players').select('*').eq('room_code', state.roomCode);
+
+  const maxScore = Math.max(...players.map(p => p.score));
+  if(maxScore >= room.win_score || room.round >= room.max_rounds) {
+    await supabase.from('rooms').update({ phase:'gameover' }).eq('code', state.roomCode);
+    return;
+  }
+
+  const newRound = room.round + 1;
+  const newJudge = (room.judge_index + 1) % players.length;
+  await supabase.from('rooms').update({ round: newRound, judge_index: newJudge, phase:'starting', black_card:null }).eq('code', state.roomCode);
+  state.round = newRound;
+  await beginRound();
+}
+
+async function handlePickingPhase(room) {
+  const {data: players} = await supabase.from('players').select('*').eq('room_code', room.code);
+  const judge = players[room.judge_index % players.length];
+  const isJudge = judge.name === state.playerName;
+
+  el('waiting-area').style.display = 'none';
+  el('black-card-area').style.display = 'block';
+  el('black-card-text').innerHTML = room.black_card.replace(/___/g,'<span class="blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>');
+
+  el('phase-label').textContent = isJudge ? '⚖️ YOU ARE THE JUDGE' : '🃏 Pick Your Card';
+  el('phase-label').style.color = isJudge ? 'var(--red)' : 'var(--acid)';
+  el('phase-sub').textContent = isJudge ? 'Wait for others to submit' : 'Choose the best answer';
+  el('phase-banner').style.display = 'block';
+
+  if(!isJudge) {
+    el('waiting-area').style.display = 'block';
+    el('waiting-text').textContent = 'Generating your hand...';
+    const cards = await generateWhiteCards(room.black_card, 7);
+    state.hand = cards;
+    el('waiting-area').style.display = 'none';
+    renderHand();
+    el('player-hand-area').style.display = 'block';
+    el('submit-btn').style.display = 'inline-block';
+    el('submit-btn').disabled = true;
+    el('submit-btn').textContent = 'Select a card first';
+  } else {
+    el('waiting-area').style.display = 'block';
+    el('waiting-text').textContent = 'Waiting for players to submit...';
+  }
+}
+
+async function handleJudgingPhase(room) {
+  const {data: players} = await supabase.from('players').select('*').eq('room_code', room.code);
+  const judge = players[room.judge_index % players.length];
+  const isJudge = judge.name === state.playerName;
+
+  const {data: subs} = await supabase.from('submissions').select('*').eq('room_code', room.code).eq('round', room.round);
+
+  hideAllGameAreas();
+  el('black-card-area').style.display = 'block';
+
+  if(isJudge) {
+    renderSubmissions(subs || []);
+  } else {
+    el('waiting-area').style.display = 'block';
+    el('waiting-text').textContent = `${judge.name} is judging...`;
+  }
+}
+
+function renderHand() {
+  el('player-hand').innerHTML = state.hand.map((card, i) =>
+    `<div class="white-card" onclick="selectCard(${i})" id="wc-${i}">${card}</div>`
+  ).join('');
+}
+
+function selectCard(i) {
+  state.selectedCard = i;
+  document.querySelectorAll('.white-card').forEach(c => c.classList.remove('selected'));
+  el('wc-'+i)?.classList.add('selected');
+  el('submit-btn').disabled = false;
+  el('submit-btn').textContent = 'Submit This Card →';
+}
+
+async function submitCard() {
+  if(state.selectedCard === null) return;
+  const chosen = state.hand[state.selectedCard];
+
+  el('player-hand-area').style.display = 'none';
+  el('submit-btn').style.display = 'none';
+  el('waiting-area').style.display = 'block';
+  el('waiting-text').textContent = 'Submitted! Waiting for others...';
+
+  await supabase.from('submissions').insert({
+    room_code: state.roomCode,
+    round: state.round,
+    player_name: state.playerName,
+    card_text: chosen,
+    is_winner: false,
+  });
+}
+
+function renderSubmissions(subs) {
+  el('judging-area').style.display = 'block';
+  el('waiting-area').style.display = 'none';
+  el('submissions-display').innerHTML = subs.map((s,i) =>
+    `<div class="white-card judging" onclick="playerJudgePick('${s.id}')">${s.card_text}</div>`
+  ).join('');
+}
+
+async function playerJudgePick(subId) {
+  const {data: sub} = await supabase.from('submissions').select('*').eq('id', subId).single();
+  const {data: players} = await supabase.from('players').select('*').eq('room_code', state.roomCode);
+  const {data: room} = await supabase.from('rooms').select('*').eq('code', state.roomCode).single();
+  await revealWinner(sub, players, room);
+}
+
+async function revealWinner(winningSub, players, room) {
+  await supabase.from('submissions').update({ is_winner:true }).eq('id', winningSub.id);
+  await supabase.from('players').update({ score: supabase.raw('score + 1') }).eq('name', winningSub.player_name).eq('room_code', state.roomCode);
+  await supabase.from('rooms').update({ phase:'reveal' }).eq('code', state.roomCode);
+
+  hideAllGameAreas();
+  el('black-card-area').style.display = 'block';
+  el('winner-area').style.display = 'block';
+  el('winner-name-display').textContent = winningSub.player_name;
+  el('winner-card-text').textContent = `"${winningSub.card_text}"`;
+  if(state.isHost) el('next-round-btn').style.display = 'inline-block';
+
+  showToast(winningSub.player_name === state.playerName ? '🏆 You won this round!' : `${winningSub.player_name} won!`);
+}
+
+function renderScores(players, room) {
+  el('scores-display').innerHTML = players.map((p,i) => {
+    const isJudge = i === (room.judge_index % players.length);
+    return `<div class="score-item">
+      <div class="score-name">${p.name.split('_')[0]}</div>
+      <div class="score-num" style="${isJudge?'color:var(--red)':''}">${p.score}${isJudge?' ⚖️':''}</div>
+    </div>`;
+  }).join('');
+}
+
+function showGameOver(players) {
+  hideAllGameAreas();
+  const winner = players?.sort((a,b) => b.score-a.score)[0];
+  el('game-winner-display').textContent = winner?.name || 'Unknown';
+  el('game-over-area').style.display = 'block';
+}
+
+function hideAllGameAreas() {
+  ['black-card-area','player-hand-area','judging-area','winner-area','game-over-area','waiting-area','submit-btn']
+    .forEach(id => { const e = el(id); if(e) e.style.display = 'none'; });
+}
+</script>
+</body>
+</html>
